@@ -11,8 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\tge-was-taken\Atlus-Script-Tools\Source\AtlusScriptCompiler\AtlusScriptCompiler.csproj" />
-    <ProjectReference Include="..\..\..\..\tge-was-taken\Atlus-Script-Tools\Source\AtlusScriptLibrary\AtlusScriptLibrary.csproj" />
+    <ProjectReference Include="../../external/Atlus-Script-Tools/Source/AtlusScriptCompiler/AtlusScriptCompiler.csproj" />
+    <ProjectReference Include="../../external/Atlus-Script-Tools/Source/AtlusScriptLibrary/AtlusScriptLibrary.csproj" />
   </ItemGroup>
 
 </Project>

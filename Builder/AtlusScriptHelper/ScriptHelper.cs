@@ -201,7 +201,10 @@ namespace AtlusScriptHelper
 
             if (!File.Exists(tempMsgHeader))
             {
-                Console.WriteLine("Failed to reindex messages.");
+                // Stop here: the header is read below, so continuing would just crash
+                // with FileNotFoundException and hide the real compile error above.
+                Console.WriteLine($"Failed to reindex messages: compiler didn't produce {tempMsgHeader}. See the compiler log above.");
+                return;
             }
 
             

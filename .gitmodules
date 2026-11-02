@@ -1,0 +1,3 @@
+[submodule "external/Atlus-Script-Tools"]
+	path = external/Atlus-Script-Tools
+	url = https://github.com/ShrineFox/Atlus-Script-Tools
