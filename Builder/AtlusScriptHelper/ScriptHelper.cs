@@ -208,23 +208,30 @@ namespace AtlusScriptHelper
             }
 
             
+            // Names of selection menus in the compiled BF, from the decompiled .msg ("[sel Name ...]").
+            // Help captions are assigned to the most recent *selection*, not just the previous message:
+            // a menu can have other dialogs between its captions (e.g. Title_JokerScale in Options_PlayerModel).
+            var selNames = new HashSet<string>(
+                File.ReadAllLines(tempMsg)
+                    .Where(l => l.StartsWith("[sel "))
+                    .Select(l => l.Substring(5).TrimEnd(']').Split(' ')[0]));
+
             // If compilation and decompilation succeeds, save indexes of GENERIC_HELP msgs and their references
             var msgNames = File.ReadAllLines(tempMsgHeader);
             List<Tuple<string, int, int>> msgIndexes = new List<Tuple<string, int, int>>(); // sel_name, help_index, overall_msg_index
+            string currentSel = null;
             for (int i = 0; i < msgNames.Length; i++)
             {
-                if (msgNames[i].StartsWith("const int GENERIC_HELP_"))
-                {
-                    for (int x = i - 1; x > 0; x--)
-                    {
-                        if (!msgNames[x].StartsWith("const int GENERIC_HELP_"))
-                        {
-                            string selName = msgNames[x].Replace("const int ", "").Split(' ')[0];
-                            msgIndexes.Add(new Tuple<string, int, int>(selName, msgIndexes.Count(x => x.Item1.Equals(selName)), i - 1));
-                            break;
-                        }
-                    }
-                }
+                if (!msgNames[i].StartsWith("const int "))
+                    continue;
+                string[] parts = msgNames[i].Replace("const int ", "").Split('=');
+                string name = parts[0].Trim();
+                int overallIndex = int.Parse(parts[1].Trim().TrimEnd(';'));
+
+                if (selNames.Contains(name))
+                    currentSel = name;
+                else if (name.StartsWith("GENERIC_HELP_") && currentSel != null)
+                    msgIndexes.Add(new Tuple<string, int, int>(currentSel, msgIndexes.Count(x => x.Item1.Equals(currentSel)), overallIndex));
             }
 
             //foreach(var msgFile in Directory.GetFiles(msgsDir, "*.msg", SearchOption.AllDirectories))
@@ -244,15 +251,29 @@ namespace AtlusScriptHelper
                         refCountSinceLastSel = 0;
                     }
 
+                    var selHelps = msgIndexes.Where(x => x.Item1.Equals(latestSel)).ToList();
+
                     // If current line contains "[ref "...
                     if (msgLines[i].Contains("[ref "))
                     {
+                        // Menu has no (or too few) help captions in the BF: leave its refs alone.
+                        if (refCountSinceLastSel >= selHelps.Count)
+                        {
+                            Console.WriteLine($"Warning: {latestSel} option {refCountSinceLastSel} has a [ref] but no matching GENERIC_HELP message; left unchanged.");
+                            refCountSinceLastSel++;
+                            continue;
+                        }
+
                         // Get name of selection option
                         int refIndex = msgLines[i].IndexOf("[ref ");
                         string substring = msgLines[i].Substring(0, refIndex);
 
                         // Create new option string with reindexed ref block
-                        string newString = $"{substring}[ref {msgIndexes.Where(x => x.Item1.Equals(latestSel)).ToList()[refCountSinceLastSel].Item1} {msgIndexes.Where(x => x.Item1.Equals(latestSel)).ToList()[refCountSinceLastSel].Item2}]";
+                        // [ref RelativeID GlobalID]: GlobalID is the N in GENERIC_HELP_N (see P5R MessageScriptLibrary.json).
+                        // Captions are renamed to GENERIC_HELP_<overall message index> below, so both sides agree.
+                        // (Previously wrote the menu *name* as RelativeID, which the compiler rejects.)
+                        var help = selHelps[refCountSinceLastSel];
+                        string newString = $"{substring}[ref {help.Item2} {help.Item3}][e]";
                         
                         // Update line with new data
                         msgLines[i] = newString;
@@ -262,7 +283,11 @@ namespace AtlusScriptHelper
 
                     if (msgLines[i].Contains("[dlg GENERIC_HELP_") || msgLines[i].Contains("[msg GENERIC_HELP_"))
                     {
-                        msgLines[i] = $"[dlg GENERIC_HELP_{msgIndexes.Where(x => x.Item1.Equals(latestSel)).ToList()[helpCountSinceLastSel]}]";
+                        if (helpCountSinceLastSel < selHelps.Count)
+                            // Was the whole Tuple, giving "GENERIC_HELP_(Options_X, 0, 38)".
+                            msgLines[i] = $"[dlg GENERIC_HELP_{selHelps[helpCountSinceLastSel].Item3}]";
+                        else
+                            Console.WriteLine($"Warning: extra GENERIC_HELP under {latestSel} not found in the BF; left unchanged.");
                         helpCountSinceLastSel++;
                     }
                 }
